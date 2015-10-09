@@ -94,7 +94,8 @@ class RecullPrediccions(object):
 
                     if self.COLNAME: # nom de la coleccio
                         self.mongodb = self.mongodb[self.COLNAME]
-
+                        self.mongodb.ensure_index('dia')
+                        self.mongodb.ensure_index('poblacion')
             else:
                 client = MongoClient()
 
@@ -136,6 +137,7 @@ class RecullPrediccions(object):
         # posarem els fitxers en un directori amb nom del dia d'avui
         dir = 'predicciones/predicciones{0}'.\
                                     format(datetime.today().strftime('%Y%m%d'))
+        self.directori = dir
         try:    os.makedirs(dir)
         except OSError as e:
             if e.errno == 17: # file exists, l'esborrem i el tornem a crear
@@ -147,7 +149,7 @@ class RecullPrediccions(object):
 
         return dir
 
-    def interpolar_hores(self, dia, hora24ahir=None):
+    def interpolar(self, avui_hores, avui_dades, hora24ahir=None):
         '''Interpolem linealment les 4 o 5 dades que tinguem
         La hora 24 d'ahir és la hora 0 d'avui.
 
@@ -160,61 +162,52 @@ class RecullPrediccions(object):
         D'aquestes 25 hores, només ens interessen les 24 últimes, des de la
         hora 1 d'avui fins la hora 24 d'avui.
         '''
-        sens_termica_elem = dia.find('sens_termica')
-        st_valores = [int(hora.text)
-                      for hora in sens_termica_elem.findall('dato')]
-        st_horas = [int(hora.get('hora'))
-                    for hora in sens_termica_elem.findall('dato')]
 
-        # reemplacem la hora 0 d'avui si la tenim
+        # insertem la hora 0 d'avui (hora 24 d'ahir) si la tenim
         if hora24ahir is not None:
-            hora0avui = hora24ahir
-            st_horas.insert(0,0)
-            st_valores.insert(0,hora0avui)
+            hora24ahir = float(hora24ahir)
+            avui_hores.insert(0,0)
+            avui_dades.insert(0,hora24ahir)
 
-        # la llista d'hores ha de ser ascendent perquè la interp. funcioni
-        if numpy.all(numpy.diff(st_horas) > 0):
-            st25horas = [numpy.interp(hora, st_horas, st_valores)
-                            for hora in range(0,25)]
+        st_interpolades = [numpy.interp(hora, avui_hores, avui_dades)
+                                for hora in range(0,25)]
 
-            # posem les tempratures amb 1 sol decimal
-            st25horas_format = ["{:10.1f}".format(t) for t in st25horas]
+        # un cop ho tenim interpolat, si tenim 25 hores, treiem la 1a ja que
+        # és la hora 24 d'ahir i ja la tenim
+        if len(st_interpolades) == 25:
+            st_interpolades.pop(0)
 
-        else:
-            raise XmlMalFormat('xml amb hores no ascendents\n')
-
-        return st25horas_format
+        return st_interpolades
 
     def guardar_registre(self, l25hores):
-        # no guardem la posició 0 ja que és la hora 24 d'ahir
 
         registre = {
             'poblacion':    self.poblacion_actual,
                     'dia':          datetime.today(),
-                    'h1':           l25hores[1],
-                    'h2':           l25hores[2],
-                    'h3':           l25hores[3],
-                    'h4':           l25hores[4],
-                    'h5':           l25hores[5],
-                    'h6':           l25hores[6],
-                    'h7':           l25hores[7],
-                    'h8':           l25hores[8],
-                    'h9':           l25hores[9],
-                    'h10':          l25hores[10],
-                    'h11':          l25hores[11],
-                    'h12':          l25hores[12],
-                    'h13':          l25hores[13],
-                    'h14':          l25hores[14],
-                    'h15':          l25hores[15],
-                    'h16':          l25hores[16],
-                    'h17':          l25hores[17],
-                    'h18':          l25hores[18],
-                    'h19':          l25hores[19],
-                    'h20':          l25hores[20],
-                    'h21':          l25hores[21],
-                    'h22':          l25hores[22],
-                    'h23':          l25hores[23],
-                    'h24':          l25hores[24]
+                    'h1':           l25hores[0],
+                    'h2':           l25hores[1],
+                    'h3':           l25hores[2],
+                    'h4':           l25hores[3],
+                    'h5':           l25hores[4],
+                    'h6':           l25hores[5],
+                    'h7':           l25hores[6],
+                    'h8':           l25hores[7],
+                    'h9':           l25hores[8],
+                    'h10':          l25hores[9],
+                    'h11':          l25hores[10],
+                    'h12':          l25hores[11],
+                    'h13':          l25hores[12],
+                    'h14':          l25hores[13],
+                    'h15':          l25hores[14],
+                    'h16':          l25hores[15],
+                    'h17':          l25hores[16],
+                    'h18':          l25hores[17],
+                    'h19':          l25hores[18],
+                    'h20':          l25hores[19],
+                    'h21':          l25hores[20],
+                    'h22':          l25hores[21],
+                    'h23':          l25hores[22],
+                    'h24':          l25hores[23]
         }
 
         try:
@@ -224,9 +217,10 @@ class RecullPrediccions(object):
 
         return
 
-    def obtenir_hora_24_ahir(self, dia_xml):
+    def obtenir_hora_24_ahir(self):
 
-        avui_00 = datetime.strptime(dia_xml, "%Y-%m-%d")
+        str_avui = str(date.today())
+        avui_00 = datetime.strptime(str_avui, "%Y-%m-%d")
         ahir_00 = avui_00 - timedelta(days=1)
 
         # # buscar la hora 24 del dia anterior
@@ -246,46 +240,72 @@ class RecullPrediccions(object):
         # retornem només el valor
         return st24_ahir[0]['h24']
 
+    def get_dades_xml_correctes(self, contingut_xml):
+        '''Comprovem si les dades del xml són tal com les esperem.
+        Els tags de sensació tèrmica del dia d'avui de vegades són buits.'''
+
+        try:
+            # obtenim els dies que hi ha al xml
+            element = ET.fromstring(contingut_xml)
+            dias = element.find('prediccion').findall('dia')
+
+            # dels dies que venen, busquem el dia d'avui. Pot ser que encara
+            # hi sigui el dia d'ahir, depèn de quan actualitzen el fitxer.
+            # No sempre està a la mateixa posició
+            avui = str(date.today())
+            for dia in dias:
+                if dia.attrib['fecha'] == avui:
+                    xmlelement_avui = dia
+                    break
+
+            # buscar del dia d'avui si els tags de sens_termica estàn correctes
+            # transformem alhora que comprovem que tots els tags tenen dades
+            xmlelement_sens_termica = xmlelement_avui.find('sens_termica')
+            st_valores = [float(hora.text)
+                      for hora in xmlelement_sens_termica.findall('dato')]
+            st_horas = [int(hora.get('hora'))
+                    for hora in xmlelement_sens_termica.findall('dato')]
+
+            return st_horas, st_valores
+
+        except Exception as e:
+            self.errors['{0} xmlmalformat'.format(self.poblacion_actual)] \
+                                                            = str(e)
+            raise XmlMalFormat('xml amb dades incompletes o incorrectes')
+
     def processar_xml(self, contingut_xml):
         '''extreure les 4 dades de sensacio termica, interpolar i guardar
         el resultat al mongo'''
 
-        element = ET.fromstring(contingut_xml)
+        # comprovem que les dades del xml són correctes
+        # de vegades el tag de sensació tèrmica ve amb hores buides...
+        avui_hores, avui_dades = self.get_dades_xml_correctes(contingut_xml)
 
-        dias = element.find('prediccion').findall('dia')
-        avui = str(date.today())
+        try:
+            st24_ahir = self.obtenir_hora_24_ahir()
+        except Exception as e:
+            self.errors['{0}_error_obtenint_hora24'.
+                format(self.poblacion_actual)] = str(e)
+            st24_ahir = None
 
-        dades_avui = dias[0]
-        dia_xml = dades_avui.get('fecha')
+        # les hores han de ser ascendents per què la interpolació funcioni
+        if numpy.all(numpy.diff(avui_hores) > 0): pass
+        else: raise XmlMalFormat('xml amb hores no ascendents')
 
-        if dia_xml == avui:
+        # interpolar les 4 dades (o 5 si tenim la h 24 del dia anterior)
+        l24h = self.interpolar(avui_hores, avui_dades, hora24ahir=st24_ahir)
 
-            try:
-                st24_ahir = self.obtenir_hora_24_ahir(dia_xml)
-            except:
-
-                st24_ahir = None
-                self.errors['{0}_hora24'.format(self.poblacion_actual)] \
-                                                                = 'no existeix'
-
-            # interpolar les 4 dades (o 5 si tenim la h 24 del dia anterior)
-            l24_hores = self.interpolar_hores(dades_avui, hora24ahir=st24_ahir)
-
-            # guardar el registre al mongo
-            self.guardar_registre(l24_hores)
-
-        else:
-            # excepcio xml malformat
-            raise XmlMalFormat('Dates incorrectes o en ordre incorrecte\n')
+        # guardar el registre al mongo
+        self.guardar_registre(l24h)
 
         return True
 
-    def guardar_fitxer_xml(self, contingut_xml, poblacion):
+    def guardar_fitxer_xml(self, contingut_xml):
 
         try:
             nom_fitxer = '{0}/{1}_{2}.xml'.\
                 format(self.directori,
-                       poblacion,
+                       self.poblacion_actual,
                        datetime.now().strftime('%Y%m%d%H%M%S'))
 
             # escriure les dades al fitxer amb la data d'avui
@@ -321,7 +341,6 @@ class RecullPrediccions(object):
     def run(self):
 
         self.crear_directori_avui()
-
         self.mongoconnection()
 
         # si el directori s'ha creat correctament
@@ -341,9 +360,8 @@ class RecullPrediccions(object):
                     self.processar_xml(xmlstring)
 
                 except Exception as e:
-                    # si tenim algun error parsejant el contingut xml,
-                    # guardem el fitxer sencer
-                    self.guardar_fitxer_xml(self, xmlstring, poblacion)
+                    # si tenim algun error guardem el fitxer sencer
+                    self.guardar_fitxer_xml(xmlstring)
 
                     # indiquem que hi ha hagut un error en el processament
                     missatge = '{0}, {1}'.format(
@@ -361,7 +379,7 @@ class RecullPrediccions(object):
 @click.command()
 @click.option('--dbname', default='temperatures', help='Nom de la bd.')
 @click.option('--colname', default='temperatures', help='Nom de la colecció.')
-@click.option('--dburi', default='mongodb://localhost/temperatures')
+@click.option('--dburi', default='mongodb://192.168.0.24/temperatures')
 
 def main(dbname, colname, dburi):
 
