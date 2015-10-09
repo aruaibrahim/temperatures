@@ -336,6 +336,7 @@ class RecullPrediccions(object):
         with open('/var/log/temperatures/log.txt', 'a') as f:
             f.write('Execució {0}'.format(datetime.today()))
             f.write(json.dumps(self.errors, indent=2))
+            f.write('\n')
         return True
 
     def run(self):
