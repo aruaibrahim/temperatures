@@ -211,7 +211,8 @@ class RecullPrediccions(object):
         }
 
         try:
-            self.mongodb.insert(registre)
+            self.inserta(registre)
+
         except Exception as e:
             self.errors['{0}_guardar_a_mongo'.format(self.poblacion_actual)] = 1
 
@@ -376,6 +377,25 @@ class RecullPrediccions(object):
             self.enviar_error_mail()
 
         return True
+
+    def inserta(self, registre):
+        '''Inserta el registre afegint-li la clau 'id'.
+        'id' correspon al comptador de la coleccio. Si no existeix comptador
+        per a la coleccio el crea.'''
+
+        counter = self.mongodb['counters'].find_and_modify(
+            {'_id': self.COLNAME},
+            {'$inc': {'counter': 1}}
+        )
+        if counter is None:
+            counter = {'_id' : self.COLNAME,
+                         'counter' : 1}
+            self.mongodb['counters'].insert(counter)
+
+        registre.update({'id': counter['counter']})
+        oid = self.mongodb.insert(registre)
+
+        return oid
 
 @click.command()
 @click.option('--dbname', default='temperatures', help='Nom de la bd.')
