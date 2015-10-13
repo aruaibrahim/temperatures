@@ -398,9 +398,9 @@ class RecullPrediccions(object):
         return oid
 
 @click.command()
-@click.option('--dbname', default='temperatures', help='Nom de la bd.')
+@click.option('--dbname', default='abenergia', help='Nom de la bd.')
 @click.option('--colname', default='temperatures', help='Nom de la colecció.')
-@click.option('--dburi', default='mongodb://192.168.0.24/temperatures')
+@click.option('--dburi', default='mongodb://192.168.0.24/abenergia')
 
 def main(dbname, colname, dburi):
 
