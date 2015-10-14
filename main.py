@@ -63,6 +63,10 @@ class XmlMalFormat(Exception):
         self.message = missatge
         return
 
+class ErrorGuardantMongo(Exception):
+    def __init__(self, missatge):
+        self.message = missatge
+        return
 
 class RecullPrediccions(object):
 
@@ -213,6 +217,7 @@ class RecullPrediccions(object):
 
         except Exception as e:
             self.errors['{0}_guardar_a_mongo'.format(self.poblacion_actual)] = 1
+            raise ErrorGuardantMongo('Error guardant registre a mongo')
 
         return
 
