@@ -89,13 +89,11 @@ class RecullPrediccions(object):
                 # Permet usr/pwd
                 client = MongoClient(self.DBURI)
 
-                if self.DBNAME: # nom de la bd
-                    self.mongodb = client[self.DBNAME]
+                self.mongodb = client[self.DBNAME]
 
-                    if self.COLNAME: # nom de la coleccio
-                        self.mongodb = self.mongodb[self.COLNAME]
-                        self.mongodb.ensure_index('dia')
-                        self.mongodb.ensure_index('poblacion')
+                self.mongocol = self.mongodb[self.COLNAME]
+                self.mongocol.ensure_index('dia')
+                self.mongocol.ensure_index('poblacion')
             else:
                 client = MongoClient()
 
@@ -225,7 +223,7 @@ class RecullPrediccions(object):
         ahir_00 = avui_00 - timedelta(days=1)
 
         # # buscar la hora 24 del dia anterior
-        st24_ahir = self.mongodb.find(\
+        st24_ahir = self.mongocol.find(\
                     {
                         'poblacion' : self.poblacion_actual,
                         'dia':  {
@@ -393,7 +391,7 @@ class RecullPrediccions(object):
             self.mongodb['counters'].insert(counter)
 
         registre.update({'id': counter['counter']})
-        oid = self.mongodb.insert(registre)
+        oid = self.mongocol.insert(registre)
 
         return oid
 
